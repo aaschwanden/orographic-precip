@@ -1,91 +1,124 @@
 #!/usr/bin/env python
-# Copyright (C) 2015 Andy Aschwanden
-
-# nosetests orographic_precipy.py
 
 import numpy as np
-from scipy import integrate
-
-# Set up constants in SI units
-L = 30e3  # m
-nx =30e2  #
-dx = 30e3  # m
-
-gamma = -6.5 * 1e-3  # degC / 1000 m
-
-vbar = 0.5  # m/s
-
-TsL = 5  # degC
-
-# Set up domain
-x = np.linspace(-L/2, L/2, nx+1)
-
-def gaussian_bump(x, a=1/(2*np.pi), b=0, c=1):
-    
-    return a*np.exp((-(x-b)**2)/(2*c**2))
-
-def gaussian_bump_test():
-    
-    sigma = np.sqrt(0.5)
-    mu = -2
-    a = 1/(sigma*np.sqrt(2*np.pi))
-    b = mu
-    c = sigma
-    x = np.linspace(-5, 2, 8)
-    assert  np.max(np.fabs(gaussian_bump(x, a, b, c) - np.array([  6.96265260e-05, 1.03334927e-02,
-                                                                2.07553749e-01, 5.64189584e-01,
-                                                                2.07553749e-01,   1.03334927e-02,
-                                                                6.96265260e-05,   6.34911734e-08]))) < 1e-9
-
-def Ts(x):
-
-    return TsL - gamma * z
-
-def esat(T):
-    '''
-    Returns water vapor saturation pressure in Pa at temperature T [Celsius] according to
-    August-Roche-Magnus formula
-    '''
-    
-    e0 = 610.94
-    a = 17.625
-    b = 243.04
-    
-    return e0*np.exp((a*T)/(b+T))
-
-def esat_test():
-    
-    T = np.array([-5, 0, 5], dtype=np.float64)
-
-    assert  np.max(np.fabs(esat(T) - np.array([ 421.9082468, 610.94, 871.55954949]))) < 1e-8
-
-
-def gaussian_smoothing(t, x, dx):
-    return exp(-((x-t)/dx)**2)
-
-def alphas():
-
-    return 1. / esat(T), 110  # m/yr/
-
-def minus_nabla_F():
-    
-    return alpha0 - alpha1*vbar*dzdx*esat
-
-def integrand():
-    return minus_nabla_F *gaussian_smoothing
-
-def expint(x, dx):
-    return quad(gaussian_smoothing, x, Inf, args=(x, dx))[0]
-
-vec_expint = np.vectorize(expint)
-
-def hillslope_erosion(x, t):
-    from scipy.special import erfc
-    D = 1
-    return 0.5 * z0 * erfc(x / (2 * np.sqrt(D * t)))
-
+from scipy.integrate import odeint, quad
 import pylab as plt
 
-z = gaussian_bump(x, 2e3, 0, L/2)
-plt.plot(x, z)
 
+
+def f(x):
+    "surface elevation"
+    return 1./(np.sqrt(2*np.pi)) * np.exp(-0.5*(x - 5.0)**2)
+
+def g(x):
+    a = 4
+    return f(x) * quad(a * f(x), -np.inf, np.inf)[0]
+
+def z(x, a=1, z0=0):
+
+    def f(x):
+        return 1./(np.sqrt(2*np.pi)) * np.exp(-0.5*(x - 5.0)**2)
+    def g(x):
+        return a * 1./(np.sqrt(2*np.pi)) * np.exp(-0.5*(x - 5.0)**2)
+
+    return f(x) / z0 * quad(g, -np.inf, np.inf)
+
+
+
+def z(x):
+    "surface elevation"
+    return 1./(np.sqrt(2*np.pi)) * np.exp(-0.5*(x - 5.0)**2) 
+
+def skewed(z, a, cdf_0):
+
+    return z(x) * cdf(a*z) / cdf_0
+
+def cdf(Y):
+    return quad(Y, -np.inf, np.inf)[0]
+
+# def z(x):
+#     "surface elevation"
+#     return 0.5 * (3.0 * np.exp(-(x - 5.0)**2) + 2.0 * np.exp(-(x - 9.0)**2) + 1.0 * np.exp(-(x - 13.0)**2))
+
+def h(x):
+    "ice elevation"
+    return 0.25 * (3.0 * np.exp(-(x - 4.0)**2) + 2.0 * np.exp(-(x - 8.0)**2) + 1.0 * np.exp(-(x - 12.0)**2))
+
+def es(T):
+    "saturation vapor pressure"
+    return 6.1094 * np.exp((17.625 * T) / (T + 243.04))
+
+def Tm(x):
+    "air temperature"
+    return 10.0 - 6.0 * z(x)    # lapse rate
+
+def Ti(x):
+    "air temperature"
+    return 10.0 - 6.0 * (z(x) + h(x))    # lapse rate
+
+def windwardm(x):
+    dx = 0.01
+    dz = z(x + dx) - z(x)
+    if dz / dx > 0:
+        return 1
+    else:
+        return 0
+
+def windwardi(x):
+    dx = 0.01
+    dz = z(x + dx) + h(x + dx) - (z(x) + h(x))
+    if dz / dx > 0:
+        return 1
+    else:
+        return 0
+    
+alpha0 = 0.01
+alpha1 = 0.1
+
+def pm(y, x):
+    "right hand side"
+    dx = 0.01
+    dz = z(x + dx) - z(x)
+    return -y * es(Tm(x)) * (alpha0 + alpha1 * windwardm(x) * v * (dz/dx))
+
+def pi(y, x):
+    "right hand side"
+    dx = 0.01
+    dz = z(x + dx) + h(x + dx) - (z(x) + h(x))
+    return -y * es(Ti(x)) * (alpha0 + alpha1 * windwardi(x) * v * (dz/dx))
+
+
+x = np.linspace(0, 20, 1001)
+y = z(x)
+yi = z(x) + h(x) 
+
+
+fig = plt.figure()
+v = 0.5
+Pm = np.squeeze(odeint(pm, 1.0, x))
+dPm = - np.diff(Pm, axis=0) / (x[1] - x[0])
+Pi = np.squeeze(odeint(pi, 1.0, x))
+dPi = - np.diff(Pi, axis=0) / (x[1] - x[0])
+
+axU = fig.add_subplot(211)
+axU.plot(x[1:], dPm, color='blue')
+axU.plot(x[1:], dPi, color='red')
+axL = fig.add_subplot(212)
+axL.plot(x[1:], y[1:], color='blue')
+axL.plot(x[1:], yi[1:], color='red')
+
+
+# for k in range(1,6):
+#     v = 0.5 * k
+#     P = np.squeeze(odeint(p, 1.0, x))
+#     dP = - np.diff(P, axis=0) / (x[1] - x[0])
+
+#     plt.subplot(5, 1, k)
+#     plt.hold(True)
+#     plt.plot(x[1:], dP, lw=1, color="blue", label="precipitation for v=%f" % v)
+#     plt.plot(x[1:], y[1:] + dP, "--", lw=1, color="red", label="precipitation over geometry")
+#     plt.plot(x, y, lw=2, color="black", label="top surface elevation")
+#     plt.legend(loc='best')
+
+plt.grid(True)
+plt.show()
