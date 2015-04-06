@@ -17,6 +17,8 @@ def g(x):
 def z(x, a=1, z0=0):
     '''
     Right-skewed topography
+
+    g = f * \int (a*f) / f(0)
     '''
     def f(x):
         return 1./(np.sqrt(2*np.pi)) * np.exp(-0.5*(x - 5.0)**2)
