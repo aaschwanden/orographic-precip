@@ -15,7 +15,9 @@ def g(x):
     return f(x) * quad(a * f(x), -np.inf, np.inf)[0]
 
 def z(x, a=1, z0=0):
-
+    '''
+    Right-skewed topography
+    '''
     def f(x):
         return 1./(np.sqrt(2*np.pi)) * np.exp(-0.5*(x - 5.0)**2)
     def g(x):
@@ -24,17 +26,6 @@ def z(x, a=1, z0=0):
     return f(x) / z0 * quad(g, -np.inf, np.inf)
 
 
-
-def z(x):
-    "surface elevation"
-    return 1./(np.sqrt(2*np.pi)) * np.exp(-0.5*(x - 5.0)**2) 
-
-def skewed(z, a, cdf_0):
-
-    return z(x) * cdf(a*z) / cdf_0
-
-def cdf(Y):
-    return quad(Y, -np.inf, np.inf)[0]
 
 # def z(x):
 #     "surface elevation"
