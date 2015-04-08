@@ -57,9 +57,9 @@ if __name__ == "__main__":
     mask = np.zeros_like(DATA)
     mask[DATA==1] = 1
     fill_value = -2e9
-    data = np.ma.array(data=DATA, mask=mask, fill_value=fill_value) / 1e3
+    data = np.ma.array(data=DATA, mask=mask, fill_value=fill_value) 
     if log:
-        data = np.log(data) / 1e3
+        data = np.log(data)
     
     p = Proj(init='EPSG:3976')
 
@@ -68,4 +68,4 @@ if __name__ == "__main__":
     # guessing
     origin = [-2559236, 1695825]
     proj4str = '+init=epsg:3031'
-    write_file(options.OUTPUTFILE[0], np.flipud(DATA), origin, 100, 100, fill_value, proj4str)
+    write_file(options.OUTPUTFILE[0], np.flipud(data), origin, 100, 100, 1, proj4str)
